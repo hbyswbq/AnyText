@@ -16,7 +16,7 @@ class AnyHookLoaded : IXposedHookLoadPackage {
     private val mainHandler = Handler(Looper.getMainLooper())
     private var currentTextView: TextView? = null
 
-    override fun handleLoadPackage(lpparam: XC_LoadPackageParam) {
+    override fun handleLoadPackage(lpparam: XC_LoadPackage.LoadPackageParam) {
         if (lpparam.packageName == "com.hhvvg.anytext") return
 
         XposedHelpers.findAndHookMethod(
@@ -62,7 +62,7 @@ class AnyHookLoaded : IXposedHookLoadPackage {
         return null
     }
 
-    private fun isInView(view: View, x: Float, y: Float): Boolean {
+    private fun isInView(view: View, x: Float, y: Boolean): Boolean {
         val loc = IntArray(2)
         view.getLocationOnScreen(loc)
         val l = loc[0].toFloat()
