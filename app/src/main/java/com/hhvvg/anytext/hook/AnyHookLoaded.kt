@@ -9,25 +9,23 @@ import de.robv.android.xposed.XposedHelpers
 import de.robv.android.xposed.callbacks.XC_LoadPackage
 
 class AnyHookLoaded : IXposedHookLoadPackage {
-    // 缓存：保存所有修改后的文字
     private val saveTextMap = hashMapOf<Int, String>()
 
     override fun handleLoadPackage(lpparam: XC_LoadPackage.LoadPackageParam) {
-        val pkg = lpparam.packageName
-        if (pkg == "com.hhvvg.anytext") return
+        // 只处理微信，其他APP不生效，避免冲突
+        if (lpparam.packageName != "com.tencent.mm") return
 
-        // ✅ 关键修复：传入目标APP的ClassLoader！
-        // 之前用模块ClassLoader，根本hook不到微信的自定义类
+        // 1. 防还原：拦截所有setText
         hookSetText(lpparam.classLoader)
-        hookViewAttach(lpparam.classLoader)
+
+        // 2. ✅ 核心修复：永久拦截所有长按事件设置
+        hookAllLongClick(lpparam.classLoader)
     }
 
-    // 拦截所有TextView（包括微信自定义MMTextView）的setText
     private fun hookSetText(classLoader: ClassLoader) {
         runCatching {
             XposedHelpers.findAndHookMethod(
-                "android.widget.TextView",
-                classLoader,
+                TextView::class.java,
                 "setText",
                 CharSequence::class.java,
                 object : XC_MethodHook() {
@@ -43,59 +41,79 @@ class AnyHookLoaded : IXposedHookLoadPackage {
         }
     }
 
-    // 遍历所有View，给所有文字控件绑定长按
-    private fun hookViewAttach(classLoader: ClassLoader) {
+    // ✅ 永久拦截所有View的长按事件设置
+    private fun hookAllLongClick(classLoader: ClassLoader) {
         runCatching {
             XposedHelpers.findAndHookMethod(
-                "android.view.View",
-                classLoader,
+                View::class.java,
+                "setOnLongClickListener",
+                View.OnLongClickListener::class.java,
+                object : XC_MethodHook() {
+                    override fun afterHookedMethod(param: MethodHookParam) {
+                        val view = param.thisObject as View
+                        // 延迟500ms，确保微信的长按事件完全设置完再覆盖
+                        view.postDelayed({
+                            bindOurLongClick(view)
+                        }, 500)
+                    }
+                }
+            )
+        }
+
+        // 兜底：页面加载时主动给所有控件绑定
+        runCatching {
+            XposedHelpers.findAndHookMethod(
+                View::class.java,
                 "onAttachedToWindow",
                 object : XC_MethodHook() {
                     override fun afterHookedMethod(param: MethodHookParam) {
                         val view = param.thisObject as View
-                        // ✅ 微信气泡延迟绑定，覆盖原长按事件
                         view.postDelayed({
-                            traverseFindTextView(view)
-                        }, 100)
+                            bindOurLongClick(view)
+                        }, 500)
                     }
                 }
             )
         }
     }
 
-    private fun traverseFindTextView(view: View) {
-        if (view is TextView) {
-            bindLongClickEdit(view)
-            return
-        }
-        if (view is ViewGroup) {
-            for (i in 0 until view.childCount) {
-                traverseFindTextView(view.getChildAt(i))
+    // 递归绑定我们的长按事件
+    private fun bindOurLongClick(view: View) {
+        runCatching {
+            // 如果是TextView，直接绑定
+            if (view is TextView) {
+                view.setOnLongClickListener {
+                    showEditDialog(it.context, view)
+                    true
+                }
+                return
+            }
+
+            // 如果是ViewGroup（微信聊天气泡本身），递归绑定子View
+            if (view is ViewGroup) {
+                for (i in 0 until view.childCount) {
+                    bindOurLongClick(view.getChildAt(i))
+                }
             }
         }
     }
 
-    // 长按修改逻辑
-    private fun bindLongClickEdit(tv: TextView) {
+    // 弹出修改对话框
+    private fun showEditDialog(context: Context, tv: TextView) {
         runCatching {
-            tv.setOnLongClickListener {
-                runCatching {
-                    com.hhvvg.anytext.ui.TextEditingDialog.show(
-                        tv.context,
-                        tv,
-                        { newStr ->
-                            runCatching {
-                                saveTextMap[tv.hashCode()] = newStr
-                                tv.text = newStr
-                            }
-                        },
-                        {
-                            saveTextMap.clear()
-                        }
-                    )
+            com.hhvvg.anytext.ui.TextEditingDialog.show(
+                context,
+                tv,
+                { newStr ->
+                    runCatching {
+                        saveTextMap[tv.hashCode()] = newStr
+                        tv.text = newStr
+                    }
+                },
+                {
+                    saveTextMap.clear()
                 }
-                true
-            }
+            )
         }
     }
 }
