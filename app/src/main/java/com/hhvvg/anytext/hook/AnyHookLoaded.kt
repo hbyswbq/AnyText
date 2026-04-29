@@ -36,7 +36,7 @@ class AnyHookLoaded : IXposedHookLoadPackage {
                                     TextEditingDialog.show(tv.context, tv) { newText ->
                                         tv.text = newText
                                     }
-                                }, 500)
+                                }, 500L)
                             }
                         }
                         MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
@@ -62,7 +62,7 @@ class AnyHookLoaded : IXposedHookLoadPackage {
         return null
     }
 
-    private fun isInView(view: View, x: Float, y: Boolean): Boolean {
+    private fun isInView(view: View, x: Float, y: Float): Boolean {
         val loc = IntArray(2)
         view.getLocationOnScreen(loc)
         val l = loc[0].toFloat()
