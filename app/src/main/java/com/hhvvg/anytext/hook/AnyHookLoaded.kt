@@ -1,5 +1,6 @@
 package com.hhvvg.anytext.hook
 
+import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
@@ -18,8 +19,6 @@ class AnyHookLoaded : IXposedHookLoadPackage {
 
         hookSetText()
         hookViewAttach()
-        // 给页面根布局加双击重置（方便随时恢复）
-        hookRootViewDoubleTapReset()
     }
 
     // 拦截setText，防文字还原
@@ -70,50 +69,23 @@ class AnyHookLoaded : IXposedHookLoadPackage {
         }
     }
 
-    // 长按修改逻辑
+    // 长按修改逻辑 + 长按菜单增加重置选项
     private fun bindLongClickEdit(tv: TextView) {
         tv.post {
             tv.setOnLongClickListener {
                 runCatching {
-                    com.hhvvg.anytext.ui.TextEditingDialog.show(tv.context, tv) { newStr ->
+                    com.hhvvg.anytext.ui.TextEditingDialog.show(tv.context, tv, { newStr ->
                         runCatching {
                             saveTextMap[tv.hashCode()] = newStr
                             tv.text = newStr
                         }
-                    }
+                    }, {
+                        // 重置回调
+                        saveTextMap.clear()
+                    })
                 }
                 true
             }
-        }
-    }
-
-    // 双击页面空白处 = 弹出重置窗口
-    private fun hookRootViewDoubleTapReset() {
-        runCatching {
-            XposedHelpers.findAndHookMethod(
-                "android.view.View",
-                "onTouchEvent",
-                MotionEvent::class.java,
-                object : XC_MethodHook() {
-                    private var lastTapTime = 0L
-                    private val doubleTapGap = 300L
-
-                    override fun beforeHookedMethod(param: MethodHookParam) {
-                        val event = param.args[0] as MotionEvent
-                        val view = param.thisObject as View
-                        if (event.action == MotionEvent.ACTION_UP) {
-                            val now = System.currentTimeMillis()
-                            if (now - lastTapTime < doubleTapGap) {
-                                // 双击触发重置
-                                com.hhvvg.anytext.ui.TextEditingDialog.showResetDialog(view.context) {
-                                    saveTextMap.clear()
-                                }
-                            }
-                            lastTapTime = now
-                        }
-                    }
-                }
-            )
         }
     }
 }
