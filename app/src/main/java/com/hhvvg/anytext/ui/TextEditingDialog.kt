@@ -3,43 +3,39 @@ package com.hhvvg.anytext.ui
 import android.content.Context
 import android.widget.EditText
 import android.widget.TextView
-import androidx.appcompat.app.AlertDialog
+import android.app.AlertDialog
 import android.util.Log
 
 object TextEditingDialog {
-    private val TAG = "AnyText_DEBUG"
+    private const val TAG = "AnyText_DEBUG"
 
     fun show(context: Context, textView: TextView, onConfirm: (String) -> Unit) {
-        Log.d(TAG, "TextEditingDialog.show 被调用")
-        Log.d(TAG, "  上下文类型: ${context.javaClass.name}")
-
+        Log.d(TAG, "✅ 原生对话框启动，不依赖AppCompat")
         val originalText = textView.text.toString()
-        Log.d(TAG, "  原始文本: '$originalText'")
 
         val editText = EditText(context).apply {
             setText(originalText)
             setSelection(originalText.length)
-            hint = "请输入新文本"
+            hint = "请输入新内容"
         }
 
-        try {
-            val dialog = AlertDialog.Builder(context, android.R.style.Theme_Material_Light_Dialog)
-                .setTitle("修改文本")
-                .setView(editText)
-                .setPositiveButton("确定") { _, _ ->
-                    val newText = editText.text.toString()
-                    Log.d(TAG, "  用户点击确定，新文本: '$newText'")
-                    onConfirm(newText)
-                }
-                .setNegativeButton("取消") { _, _ ->
-                    Log.d(TAG, "  用户点击取消")
-                }
-                .create()
+        // ✅ 用系统原生 AlertDialog，兼容所有主题！
+        val dialog = AlertDialog.Builder(context)
+            .setTitle("修改文本")
+            .setView(editText)
+            .setPositiveButton("确定") { _, _ ->
+                val newText = editText.text.toString().trim()
+                onConfirm(newText)
+                Log.d(TAG, "✅ 修改成功：$newText")
+            }
+            .setNegativeButton("取消", null)
+            .create()
 
+        try {
             dialog.show()
-            Log.d(TAG, "  ✅ 对话框成功显示")
+            Log.d(TAG, "✅ 对话框显示成功")
         } catch (e: Exception) {
-            Log.e(TAG, "  ❌ 创建对话框失败", e)
+            Log.e(TAG, "❌ 对话框显示失败", e)
         }
     }
 }
