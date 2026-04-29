@@ -7,16 +7,15 @@ import android.app.AlertDialog
 
 object TextEditingDialog {
     fun show(context: Context, textView: TextView, onConfirm: (String) -> Unit) {
-        val editText = EditText(context).apply {
-            setText(textView.text)
-            setSelection(textView.text.length)
-        }
+        val edit = EditText(context)
+        edit.setText(textView.text)
+        edit.setSelection(textView.text.length)
 
         AlertDialog.Builder(context)
             .setTitle("修改文字")
-            .setView(editText)
+            .setView(edit)
             .setPositiveButton("确定") { _, _ ->
-                onConfirm(editText.text.toString())
+                onConfirm(edit.text.toString())
             }
             .setNegativeButton("取消", null)
             .show()
