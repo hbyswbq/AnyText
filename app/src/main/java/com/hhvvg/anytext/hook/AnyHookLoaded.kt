@@ -1,5 +1,7 @@
 package com.hhvvg.anytext.hook
 
+import android.os.Handler
+import android.os.Looper
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
@@ -11,11 +13,10 @@ import de.robv.android.xposed.callbacks.XC_LoadPackage
 import com.hhvvg.anytext.ui.TextEditingDialog
 
 class AnyHookLoaded : IXposedHookLoadPackage {
+    private val mainHandler = Handler(Looper.getMainLooper())
+    private var currentTextView: TextView? = null
 
-    private var lastDialogTime = 0L
-    private val DIALOG_INTERVAL = 800L
-
-    override fun handleLoadPackage(lpparam: XC_LoadPackage.LoadPackageParam) {
+    override fun handleLoadPackage(lpparam: XC_LoadPackageParam) {
         if (lpparam.packageName == "com.hhvvg.anytext") return
 
         XposedHelpers.findAndHookMethod(
@@ -27,16 +28,20 @@ class AnyHookLoaded : IXposedHookLoadPackage {
                     val event = param.args[0] as MotionEvent
                     val view = param.thisObject as View
 
-                    if (event.action == MotionEvent.ACTION_DOWN) {
-                        if (System.currentTimeMillis() - lastDialogTime < DIALOG_INTERVAL) {
-                            return
-                        }
-                        val tv = findTopTextView(view.rootView, event.rawX, event.rawY)
-                        if (tv != null) {
-                            lastDialogTime = System.currentTimeMillis()
-                            TextEditingDialog.show(tv.context, tv) { newText ->
-                                tv.text = newText
+                    when (event.action) {
+                        MotionEvent.ACTION_DOWN -> {
+                            currentTextView = findTopTextView(view.rootView, event.rawX, event.rawY)
+                            currentTextView?.let { tv ->
+                                mainHandler.postDelayed({
+                                    TextEditingDialog.show(tv.context, tv) { newText ->
+                                        tv.text = newText
+                                    }
+                                }, 500)
                             }
+                        }
+                        MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                            mainHandler.removeCallbacksAndMessages(null)
+                            currentTextView = null
                         }
                     }
                 }
@@ -47,10 +52,10 @@ class AnyHookLoaded : IXposedHookLoadPackage {
     private fun findTopTextView(root: View, x: Float, y: Float): TextView? {
         if (!isInView(root, x, y)) return null
         if (root is TextView && root.isShown) return root
+
         if (root is ViewGroup) {
             for (i in root.childCount - 1 downTo 0) {
-                val child = root.getChildAt(i)
-                val res = findTopTextView(child, x, y)
+                val res = findTopTextView(root.getChildAt(i), x, y)
                 if (res != null) return res
             }
         }
