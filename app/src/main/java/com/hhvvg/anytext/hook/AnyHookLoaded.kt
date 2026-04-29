@@ -22,19 +22,16 @@ class AnyHookLoaded : IXposedHookLoadPackage {
                     override fun afterHookedMethod(param: MethodHookParam) {
                         val tv = param.thisObject as TextView
                         tv.post {
-                            val oldListener = tv.onLongClickListener
+                            // 直接设置长按，不读取原有监听，彻底无报错
                             tv.setOnLongClickListener {
-                                var handled = false
                                 runCatching {
                                     TextEditingDialog.show(it.context, tv) { newText ->
                                         runCatching {
                                             tv.text = newText
                                         }
                                     }
-                                    handled = true
                                 }
-                                oldListener?.onLongClick(it)
-                                handled
+                                true
                             }
                         }
                     }
