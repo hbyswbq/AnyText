@@ -6,7 +6,6 @@ import android.widget.TextView
 import androidx.appcompat.app.AlertDialog
 
 object TextEditingDialog {
-
     fun show(context: Context, textView: TextView, onConfirm: (String) -> Unit) {
         val originalText = textView.text.toString()
 
@@ -20,8 +19,7 @@ object TextEditingDialog {
             .setTitle("修改文本")
             .setView(editText)
             .setPositiveButton("确定") { _, _ ->
-                val newText = editText.text.toString()
-                onConfirm(newText)
+                onConfirm(editText.text.toString())
             }
             .setNegativeButton("取消", null)
             .show()
