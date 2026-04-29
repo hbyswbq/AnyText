@@ -15,12 +15,11 @@ import com.hhvvg.anytext.ui.TextEditingDialog
 class AnyHookLoaded : IXposedHookLoadPackage {
     private val mainHandler = Handler(Looper.getMainLooper())
     private var longPressRunnable: Runnable? = null
-    private val LONG_PRESS_DELAY = 500 // 长按500ms触发
+    private val LONG_PRESS_DELAY = 500L // 这里加 L 变成 Long 类型
 
     override fun handleLoadPackage(lpparam: XC_LoadPackage.LoadPackageParam) {
         if (lpparam.packageName == "com.hhvvg.anytext") return
 
-        // 全局 Hook 触摸事件
         XposedHelpers.findAndHookMethod(
             View::class.java,
             "dispatchTouchEvent",
