@@ -5,6 +5,7 @@ import android.app.Application
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
@@ -19,9 +20,10 @@ import android.util.Log
 class AnyHookLoaded : IXposedHookLoadPackage {
     private val TAG = "AnyTextHook"
     private val mainHandler = Handler(Looper.getMainLooper())
+    // 用唯一的Key存储Hook状态，避免和应用自身Tag冲突
+    private val HOOKED_KEY = "com.hhvvg.anytext.HOOKED"
 
     override fun handleLoadPackage(lpparam: XC_LoadPackage.LoadPackageParam) {
-        // 跳过自身应用，避免无限循环
         if (lpparam.packageName == "com.hhvvg.anytext") return
 
         try {
@@ -30,45 +32,50 @@ class AnyHookLoaded : IXposedHookLoadPackage {
                 "onCreate",
                 object : XC_MethodHook() {
                     override fun afterHookedMethod(param: MethodHookParam) {
-                        try {
-                            val application = param.thisObject as Application
-                            application.registerActivityLifecycleCallbacks(GlobalActivityLifecycleListener())
-                            Log.d(TAG, "成功注册Activity生命周期回调: ${lpparam.packageName}")
-                        } catch (e: Exception) {
-                            Log.e(TAG, "注册生命周期回调失败", e)
-                        }
+                        val application = param.thisObject as Application
+                        application.registerActivityLifecycleCallbacks(GlobalActivityLifecycleListener())
+                        Log.d(TAG, "模块加载成功: ${lpparam.packageName}")
                     }
                 }
             )
         } catch (e: Exception) {
-            Log.e(TAG, "Hook Application.onCreate失败", e)
+            Log.e(TAG, "模块加载失败", e)
         }
     }
 
     private inner class GlobalActivityLifecycleListener : Application.ActivityLifecycleCallbacks {
         override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) {
-            // 延迟200ms遍历，确保布局完全加载完成
-            mainHandler.postDelayed({
-                try {
-                    val rootView = activity.window.decorView.findViewById<ViewGroup>(android.R.id.content)
-                    traverseViewTree(rootView)
-                    Log.d(TAG, "Activity布局遍历完成: ${activity.javaClass.simpleName}")
-                } catch (e: Exception) {
-                    Log.e(TAG, "遍历View树失败", e)
-                }
-            }, 200)
+            scheduleTraverse(activity, 200)
+        }
+
+        // ✅ 修复：每次页面恢复都重新Hook，防止被应用覆盖
+        override fun onActivityResumed(activity: Activity) {
+            scheduleTraverse(activity, 100)
         }
 
         override fun onActivityStarted(activity: Activity) {}
-        override fun onActivityResumed(activity: Activity) {}
         override fun onActivityPaused(activity: Activity) {}
         override fun onActivityStopped(activity: Activity) {}
         override fun onActivitySaveInstanceState(activity: Activity, outState: Bundle) {}
         override fun onActivityDestroyed(activity: Activity) {}
     }
 
+    private fun scheduleTraverse(activity: Activity, delay: Long) {
+        mainHandler.postDelayed({
+            try {
+                val rootView = activity.window.decorView.findViewById<ViewGroup>(android.R.id.content)
+                traverseViewTree(rootView)
+                Log.d(TAG, "View树遍历完成")
+            } catch (e: Exception) {
+                Log.e(TAG, "View树遍历失败", e)
+            }
+        }, delay)
+    }
+
     private fun traverseViewTree(view: View) {
         try {
+            if (view.getTag(HOOKED_KEY) == true) return
+
             when (view) {
                 is ViewGroup -> {
                     for (i in 0 until view.childCount) {
@@ -76,24 +83,47 @@ class AnyHookLoaded : IXposedHookLoadPackage {
                         traverseViewTree(child)
                     }
 
-                    // 特殊处理RecyclerView
                     if (view is RecyclerView) {
                         hookRecyclerViewAdapter(view)
                     }
                 }
 
                 is TextView -> {
-                    if (view.tag !is TextViewClickWrapper) {
-                        hookSingleTextView(view)
-                    }
+                    hookTextView(view)
                 }
             }
+
+            view.setTag(HOOKED_KEY, true)
         } catch (e: Exception) {
-            Log.e(TAG, "处理单个View失败", e)
+            Log.e(TAG, "处理View失败", e)
         }
     }
 
-    // ✅ 修复：多Android版本兼容获取点击监听器
+    // ✅ 修复：同时设置点击+长按触发，解决点击事件被覆盖问题
+    private fun hookTextView(textView: TextView) {
+        // 先获取原始监听器
+        val originalClickListener = getOnClickListener(textView)
+        val originalLongClickListener = textView.onLongClickListener
+
+        // 点击触发
+        textView.setOnClickListener { v ->
+            originalClickListener?.onClick(v)
+            showEditDialog(v.context, textView)
+        }
+
+        // 长按触发（备用，点击被覆盖时用这个）
+        textView.setOnLongClickListener { v ->
+            val handled = originalLongClickListener?.onLongClick(v) ?: false
+            if (!handled) {
+                showEditDialog(v.context, textView)
+            }
+            true
+        }
+
+        Log.d(TAG, "成功Hook TextView: ${textView.text}")
+    }
+
+    // ✅ 修复：多版本兼容获取点击监听器
     private fun getOnClickListener(textView: TextView): View.OnClickListener? {
         val fieldNames = arrayOf("mOnClickListener", "mOnClickLister", "onClickListener")
         for (fieldName in fieldNames) {
@@ -103,19 +133,7 @@ class AnyHookLoaded : IXposedHookLoadPackage {
                 continue
             }
         }
-        Log.w(TAG, "无法获取TextView的点击监听器")
         return null
-    }
-
-    private fun hookSingleTextView(textView: TextView) {
-        try {
-            val originalListener = getOnClickListener(textView)
-            val wrapper = TextViewClickWrapper(originalListener, textView)
-            textView.setOnClickListener(wrapper)
-            textView.tag = wrapper
-        } catch (e: Exception) {
-            Log.e(TAG, "Hook TextView失败", e)
-        }
     }
 
     private fun hookRecyclerViewAdapter(recyclerView: RecyclerView) {
@@ -126,14 +144,11 @@ class AnyHookLoaded : IXposedHookLoadPackage {
                 RecyclerView.Adapter::class.java,
                 object : XC_MethodHook() {
                     override fun afterHookedMethod(param: MethodHookParam) {
-                        // 适配器更新后延迟遍历
                         recyclerView.postDelayed({
-                            try {
-                                traverseViewTree(recyclerView)
-                            } catch (e: Exception) {
-                                Log.e(TAG, "RecyclerView刷新后遍历失败", e)
-                            }
-                        }, 100)
+                            // 清除RecyclerView的Hook标记，重新遍历所有子项
+                            recyclerView.setTag(HOOKED_KEY, null)
+                            traverseViewTree(recyclerView)
+                        }, 150)
                     }
                 }
             )
@@ -142,24 +157,13 @@ class AnyHookLoaded : IXposedHookLoadPackage {
         }
     }
 
-    private inner class TextViewClickWrapper(
-        private val originalListener: View.OnClickListener?,
-        private val targetTextView: TextView
-    ) : View.OnClickListener {
-
-        override fun onClick(v: View?) {
-            try {
-                // 先执行原始点击事件
-                originalListener?.onClick(v)
-                
-                // 弹出编辑对话框
-                val context = v?.context ?: return
-                TextEditingDialog.show(context, targetTextView) { newText ->
-                    targetTextView.text = newText
-                }
-            } catch (e: Exception) {
-                Log.e(TAG, "点击事件处理失败", e)
+    private fun showEditDialog(context: Context, textView: TextView) {
+        try {
+            TextEditingDialog.show(context, textView) { newText ->
+                textView.text = newText
             }
+        } catch (e: Exception) {
+            Log.e(TAG, "弹出对话框失败", e)
         }
     }
 }
