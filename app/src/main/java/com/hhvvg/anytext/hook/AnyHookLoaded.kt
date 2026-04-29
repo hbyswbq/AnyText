@@ -1,5 +1,6 @@
 package com.hhvvg.anytext.hook
 
+import android.content.Context
 import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
@@ -16,13 +17,13 @@ class AnyHookLoaded : IXposedHookLoadPackage {
         if (lpparam.packageName != "com.tencent.mm") return
 
         // 1. 防还原：拦截所有setText
-        hookSetText(lpparam.classLoader)
+        hookSetText()
 
-        // 2. ✅ 核心修复：永久拦截所有长按事件设置
-        hookAllLongClick(lpparam.classLoader)
+        // 2. 核心修复：永久拦截所有长按事件设置
+        hookAllLongClick()
     }
 
-    private fun hookSetText(classLoader: ClassLoader) {
+    private fun hookSetText() {
         runCatching {
             XposedHelpers.findAndHookMethod(
                 TextView::class.java,
@@ -41,8 +42,8 @@ class AnyHookLoaded : IXposedHookLoadPackage {
         }
     }
 
-    // ✅ 永久拦截所有View的长按事件设置
-    private fun hookAllLongClick(classLoader: ClassLoader) {
+    // 永久拦截所有View的长按事件设置
+    private fun hookAllLongClick() {
         runCatching {
             XposedHelpers.findAndHookMethod(
                 View::class.java,
