@@ -11,27 +11,26 @@ import com.hhvvg.anytext.ui.TextEditingDialog
 class AnyHookLoaded : IXposedHookLoadPackage {
 
     override fun handleLoadPackage(lpparam: XC_LoadPackage.LoadPackageParam) {
-        val pkg = lpparam.packageName
-        if (pkg == "com.hhvvg.anytext") return
+        val packageName = lpparam.packageName
+        if (packageName == "com.hhvvg.anytext") return
 
-        // 给所有TextView添加长按事件（最稳定写法）
+        // 安全 Hook TextView 长按
         XposedHelpers.findAndHookMethod(
             TextView::class.java,
-            lpparam.classLoader,
-            "onAttachedToWindow"
-        )
-        object : XC_MethodHook() {
-            override fun afterHookedMethod(param: MethodHookParam) {
-                val tv = param.thisObject as TextView
-                if (tv.onLongClickListener == null) {
-                    tv.setOnLongClickListener { v ->
-                        TextEditingDialog.show(v.context, tv) { newText ->
-                            tv.text = newText
+            "setOnLongClickListener",
+            View.OnLongClickListener::class.java,
+            object : XC_MethodHook() {
+                override fun afterHookedMethod(param: MethodHookParam) {
+                    val textView = param.thisObject as TextView
+                    val originalListener = textView.onLongClickListener
+
+                    textView.setOnLongClickListener { v ->
+                        TextEditingDialog.show(v.context, textView) { newText ->
+                            textView.text = newText
                         }
-                        true
+                        originalListener?.onLongClick(v) ?: true
                     }
                 }
-            }
-        }
+            })
     }
 }
