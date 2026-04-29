@@ -6,6 +6,7 @@ import android.content.Context
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
@@ -19,74 +20,81 @@ import android.util.Log
 class AnyHookLoaded : IXposedHookLoadPackage {
     private val TAG = "AnyTextHook"
     private val mainHandler = Handler(Looper.getMainLooper())
+    private var longPressRunnable: Runnable? = null
 
     override fun handleLoadPackage(lpparam: XC_LoadPackage.LoadPackageParam) {
-        // 跳过自身应用
         if (lpparam.packageName == "com.hhvvg.anytext") return
 
         try {
+            // ✅ 终极方案：Hook全局触摸事件，完全绕过所有拦截
             XposedHelpers.findAndHookMethod(
-                Application::class.java,
-                "onCreate",
+                View::class.java,
+                "dispatchTouchEvent",
+                MotionEvent::class.java,
                 object : XC_MethodHook() {
-                    override fun afterHookedMethod(param: MethodHookParam) {
-                        val application = param.thisObject as Application
-                        application.registerActivityLifecycleCallbacks(GlobalActivityLifecycleListener())
-                        Log.d(TAG, "✅ 模块加载成功: ${lpparam.packageName}")
+                    override fun beforeHookedMethod(param: MethodHookParam) {
+                        val view = param.thisObject as View
+                        val event = param.args[0] as MotionEvent
+
+                        when (event.action) {
+                            MotionEvent.ACTION_DOWN -> {
+                                longPressRunnable = Runnable {
+                                    val touchedTextView = findTouchedTextView(view.rootView, event.rawX, event.rawY)
+                                    if (touchedTextView != null) {
+                                        try {
+                                            TextEditingDialog.show(touchedTextView.context, touchedTextView) { newText ->
+                                                touchedTextView.text = newText
+                                            }
+                                            Log.d(TAG, "✅ 弹出编辑对话框成功")
+                                        } catch (e: Exception) {
+                                            Log.e(TAG, "❌ 弹出编辑对话框失败", e)
+                                        }
+                                    }
+                                }
+                                mainHandler.postDelayed(longPressRunnable!!, 500)
+                            }
+                            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                                longPressRunnable?.let { mainHandler.removeCallbacks(it) }
+                            }
+                        }
                     }
                 }
             )
+
+            Log.d(TAG, "✅ 模块加载成功: ${lpparam.packageName}")
         } catch (e: Exception) {
             Log.e(TAG, "❌ 模块加载失败", e)
         }
     }
 
-    private inner class GlobalActivityLifecycleListener : Application.ActivityLifecycleCallbacks {
-        // ✅ 最可靠的Hook时机：页面恢复后延迟300ms，确保布局100%加载完成
-        override fun onActivityResumed(activity: Activity) {
-            mainHandler.postDelayed({
-                try {
-                    val rootView = activity.window.decorView
-                    hookAllTextViews(rootView)
-                    Log.d(TAG, "✅ 成功Hook当前页面所有TextView")
-                } catch (e: Exception) {
-                    Log.e(TAG, "❌ Hook页面失败", e)
-                }
-            }, 300)
+    // 根据触摸坐标找到对应的TextView
+    private fun findTouchedTextView(root: View, x: Float, y: Float): TextView? {
+        val location = IntArray(2)
+        root.getLocationOnScreen(location)
+        val left = location[0]
+        val top = location[1]
+        val right = left + root.width
+        val bottom = top + root.height
+
+        if (x < left || x > right || y < top || y > bottom) {
+            return null
         }
 
-        override fun onActivityCreated(a: Activity, b: Bundle?) {}
-        override fun onActivityStarted(a: Activity) {}
-        override fun onActivityPaused(a: Activity) {}
-        override fun onActivityStopped(a: Activity) {}
-        override fun onActivitySaveInstanceState(a: Activity, b: Bundle) {}
-        override fun onActivityDestroyed(a: Activity) {}
-    }
-
-    // 递归Hook所有TextView，仅用长按触发
-    private fun hookAllTextViews(view: View) {
-        if (view is ViewGroup) {
-            for (i in 0 until view.childCount) {
-                val child = view.getChildAt(i) ?: continue
-                hookAllTextViews(child)
-            }
-        } else if (view is TextView) {
-            // 用简单Tag避免重复设置
-            if (view.tag != "anytext_hooked") {
-                // ✅ 仅使用长按触发，完全避免点击事件冲突
-                view.setOnLongClickListener { v ->
-                    try {
-                        TextEditingDialog.show(v.context, view) { newText ->
-                            view.text = newText
-                        }
-                    } catch (e: Exception) {
-                        Log.e(TAG, "❌ 弹出对话框失败", e)
+        if (root is ViewGroup) {
+            for (i in root.childCount - 1 downTo 0) {
+                val child = root.getChildAt(i)
+                if (child.isShown) {
+                    val result = findTouchedTextView(child, x, y)
+                    if (result != null) {
+                        return result
                     }
-                    true
                 }
-                view.tag = "anytext_hooked"
-                Log.d(TAG, "✅ Hooked: ${view.text}")
             }
+        } else if (root is TextView && root.isShown) {
+            Log.d(TAG, "✅ 找到触摸的TextView: ${root.text}")
+            return root
         }
+
+        return null
     }
 }
