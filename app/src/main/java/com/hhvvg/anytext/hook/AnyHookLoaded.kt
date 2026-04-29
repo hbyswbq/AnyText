@@ -1,6 +1,5 @@
 package com.hhvvg.anytext.hook
 
-import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
@@ -17,15 +16,18 @@ class AnyHookLoaded : IXposedHookLoadPackage {
         val pkg = lpparam.packageName
         if (pkg == "com.hhvvg.anytext") return
 
-        hookSetText()
-        hookViewAttach()
+        // ✅ 关键修复：传入目标APP的ClassLoader！
+        // 之前用模块ClassLoader，根本hook不到微信的自定义类
+        hookSetText(lpparam.classLoader)
+        hookViewAttach(lpparam.classLoader)
     }
 
-    // 拦截setText，防文字还原
-    private fun hookSetText() {
+    // 拦截所有TextView（包括微信自定义MMTextView）的setText
+    private fun hookSetText(classLoader: ClassLoader) {
         runCatching {
             XposedHelpers.findAndHookMethod(
-                TextView::class.java,
+                "android.widget.TextView",
+                classLoader,
                 "setText",
                 CharSequence::class.java,
                 object : XC_MethodHook() {
@@ -41,16 +43,20 @@ class AnyHookLoaded : IXposedHookLoadPackage {
         }
     }
 
-    // 遍历全局所有文字控件
-    private fun hookViewAttach() {
+    // 遍历所有View，给所有文字控件绑定长按
+    private fun hookViewAttach(classLoader: ClassLoader) {
         runCatching {
             XposedHelpers.findAndHookMethod(
-                View::class.java,
+                "android.view.View",
+                classLoader,
                 "onAttachedToWindow",
                 object : XC_MethodHook() {
                     override fun afterHookedMethod(param: MethodHookParam) {
-                        val rootView = param.thisObject as View
-                        traverseFindTextView(rootView)
+                        val view = param.thisObject as View
+                        // ✅ 微信气泡延迟绑定，覆盖原长按事件
+                        view.postDelayed({
+                            traverseFindTextView(view)
+                        }, 100)
                     }
                 }
             )
@@ -69,20 +75,24 @@ class AnyHookLoaded : IXposedHookLoadPackage {
         }
     }
 
-    // 长按修改逻辑 + 长按菜单增加重置选项
+    // 长按修改逻辑
     private fun bindLongClickEdit(tv: TextView) {
-        tv.post {
+        runCatching {
             tv.setOnLongClickListener {
                 runCatching {
-                    com.hhvvg.anytext.ui.TextEditingDialog.show(tv.context, tv, { newStr ->
-                        runCatching {
-                            saveTextMap[tv.hashCode()] = newStr
-                            tv.text = newStr
+                    com.hhvvg.anytext.ui.TextEditingDialog.show(
+                        tv.context,
+                        tv,
+                        { newStr ->
+                            runCatching {
+                                saveTextMap[tv.hashCode()] = newStr
+                                tv.text = newStr
+                            }
+                        },
+                        {
+                            saveTextMap.clear()
                         }
-                    }, {
-                        // 重置回调
-                        saveTextMap.clear()
-                    })
+                    )
                 }
                 true
             }
