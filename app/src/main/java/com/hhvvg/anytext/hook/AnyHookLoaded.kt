@@ -1,6 +1,5 @@
 package com.hhvvg.anytext.hook
 
-import android.app.Application
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
@@ -12,6 +11,9 @@ import de.robv.android.xposed.callbacks.XC_LoadPackage
 import com.hhvvg.anytext.ui.TextEditingDialog
 
 class AnyHookLoaded : IXposedHookLoadPackage {
+
+    private var lastDialogTime = 0L
+    private val DIALOG_INTERVAL = 800L
 
     override fun handleLoadPackage(lpparam: XC_LoadPackage.LoadPackageParam) {
         if (lpparam.packageName == "com.hhvvg.anytext") return
@@ -26,35 +28,42 @@ class AnyHookLoaded : IXposedHookLoadPackage {
                     val view = param.thisObject as View
 
                     if (event.action == MotionEvent.ACTION_DOWN) {
-                        findTextViewAndShowDialog(view, event.rawX, event.rawY)
+                        if (System.currentTimeMillis() - lastDialogTime < DIALOG_INTERVAL) {
+                            return
+                        }
+                        val tv = findTopTextView(view.rootView, event.rawX, event.rawY)
+                        if (tv != null) {
+                            lastDialogTime = System.currentTimeMillis()
+                            TextEditingDialog.show(tv.context, tv) { newText ->
+                                tv.text = newText
+                            }
+                        }
                     }
                 }
             }
         )
     }
 
-    private fun findTextViewAndShowDialog(view: View, x: Float, y: Float) {
-        if (view is ViewGroup) {
-            for (i in 0 until view.childCount) {
-                val child = view.getChildAt(i)
-                if (isTouchInView(child, x, y)) {
-                    findTextViewAndShowDialog(child, x, y)
-                }
-            }
-        } else if (view is TextView && view.isShown) {
-            TextEditingDialog.show(view.context, view) { newText ->
-                view.text = newText
+    private fun findTopTextView(root: View, x: Float, y: Float): TextView? {
+        if (!isInView(root, x, y)) return null
+        if (root is TextView && root.isShown) return root
+        if (root is ViewGroup) {
+            for (i in root.childCount - 1 downTo 0) {
+                val child = root.getChildAt(i)
+                val res = findTopTextView(child, x, y)
+                if (res != null) return res
             }
         }
+        return null
     }
 
-    private fun isTouchInView(view: View, x: Float, y: Float): Boolean {
+    private fun isInView(view: View, x: Float, y: Float): Boolean {
         val loc = IntArray(2)
         view.getLocationOnScreen(loc)
-        val left = loc[0].toFloat()
-        val top = loc[1].toFloat()
-        val right = left + view.width.toFloat()
-        val bottom = top + view.height.toFloat()
-        return x >= left && x <= right && y >= top && y <= bottom
+        val l = loc[0].toFloat()
+        val t = loc[1].toFloat()
+        val r = l + view.width.toFloat()
+        val b = t + view.height.toFloat()
+        return x >= l && x <= r && y >= t && y <= b
     }
 }
