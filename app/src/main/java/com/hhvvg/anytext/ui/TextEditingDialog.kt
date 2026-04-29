@@ -6,7 +6,8 @@ import android.widget.TextView
 import android.app.AlertDialog
 
 object TextEditingDialog {
-    fun show(context: Context, textView: TextView, onConfirm: (String) -> Unit) {
+
+    fun show(context: Context, textView: TextView, onEdit: (String) -> Unit, onReset: () -> Unit) {
         val editText = EditText(context)
         editText.setText(textView.text.toString())
 
@@ -14,21 +15,14 @@ object TextEditingDialog {
             AlertDialog.Builder(context, android.R.style.Theme_DeviceDefault_Dialog)
                 .setTitle("修改聊天文本")
                 .setView(editText)
-                .setPositiveButton("确定") { _, _ ->
-                    onConfirm(editText.text.toString())
+                .setPositiveButton("确定修改") { _, _ ->
+                    onEdit(editText.text.toString())
+                }
+                .setNeutralButton("全部重置") { _, _ ->
+                    onReset()
                 }
                 .setNegativeButton("取消", null)
                 .show()
         }
-    }
-
-    // 全局重置弹窗
-    fun showResetDialog(context: Context, onReset: () -> Unit) {
-        AlertDialog.Builder(context)
-            .setTitle("重置修改")
-            .setMessage("确定要恢复所有改过的文字吗？")
-            .setPositiveButton("确定重置") { _, _ -> onReset() }
-            .setNegativeButton("取消", null)
-            .show()
     }
 }
