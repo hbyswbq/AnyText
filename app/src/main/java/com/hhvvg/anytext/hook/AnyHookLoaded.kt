@@ -1,9 +1,5 @@
 package com.hhvvg.anytext.hook
 
-import android.app.Application
-import android.os.Handler
-import android.os.Looper
-import android.view.MotionEvent
 import android.view.View
 import android.widget.TextView
 import de.robv.android.xposed.IXposedHookLoadPackage
@@ -13,42 +9,35 @@ import de.robv.android.xposed.callbacks.XC_LoadPackage
 import com.hhvvg.anytext.ui.TextEditingDialog
 
 class AnyHookLoaded : IXposedHookLoadPackage {
-    private val mainHandler = Handler(Looper.getMainLooper())
-    private var longPressRunnable: Runnable? = null
-    private val LONG_PRESS_DELAY = 500L // 这里加 L 变成 Long 类型
 
     override fun handleLoadPackage(lpparam: XC_LoadPackage.LoadPackageParam) {
         if (lpparam.packageName == "com.hhvvg.anytext") return
 
+        // 给所有 TextView 设置长按事件
         XposedHelpers.findAndHookMethod(
-            View::class.java,
-            "dispatchTouchEvent",
-            MotionEvent::class.java,
+            TextView::class.java,
+            "setOnLongClickListener",
+            View.OnLongClickListener::class.java,
             object : XC_MethodHook() {
-                override fun beforeHookedMethod(param: MethodHookParam) {
-                    val view = param.thisObject as View
-                    val event = param.args[0] as MotionEvent
-
-                    if (view !is TextView) return
-
-                    when (event.action) {
-                        MotionEvent.ACTION_DOWN -> {
-                            longPressRunnable = Runnable {
-                                TextEditingDialog.show(view.context, view) { newText ->
-                                    view.text = newText
-                                }
-                            }
-                            mainHandler.postDelayed(longPressRunnable!!, LONG_PRESS_DELAY)
-                        }
-
-                        MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                            longPressRunnable?.let {
-                                mainHandler.removeCallbacks(it)
-                            }
-                        }
-                    }
+                override fun afterHookedMethod(param: MethodHookParam) {
+                    val textView = param.thisObject as TextView
+                    hookTextViewLongClick(textView)
                 }
             }
         )
+    }
+
+    private fun hookTextViewLongClick(textView: TextView) {
+        // 系统原有长按监听保留
+        val originalListener = textView.onLongClickListener
+
+        textView.setOnLongClickListener { v ->
+            // 先弹我们的框
+            TextEditingDialog.show(v.context, textView) { newText ->
+                textView.text = newText
+            }
+            // 再执行原来的长按（不影响APP）
+            originalListener?.onLongClick(v) ?: true
+        }
     }
 }
