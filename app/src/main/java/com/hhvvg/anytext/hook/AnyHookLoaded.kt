@@ -11,8 +11,10 @@ import com.hhvvg.anytext.ui.TextEditingDialog
 class AnyHookLoaded : IXposedHookLoadPackage {
 
     override fun handleLoadPackage(lpparam: XC_LoadPackage.LoadPackageParam) {
-        if (lpparam.packageName == "com.hhvvg.anytext") return
+        val pkg = lpparam.packageName
+        if (pkg == "com.hhvvg.anytext") return
 
+        // 兼容聊天列表：延迟设置长按，更稳定
         runCatching {
             XposedHelpers.findAndHookMethod(
                 TextView::class.java,
@@ -20,19 +22,26 @@ class AnyHookLoaded : IXposedHookLoadPackage {
                 object : XC_MethodHook() {
                     override fun afterHookedMethod(param: MethodHookParam) {
                         val tv = param.thisObject as TextView
-                        tv.setOnLongClickListener {
-                            runCatching {
-                                TextEditingDialog.show(it.context, tv) { newText ->
-                                    runCatching {
-                                        tv.text = newText
-                                    }
-                                }
+                        tv.post {
+                            tv.setOnLongClickListener {
+                                showEditDialog(tv)
+                                true
                             }
-                            true
                         }
                     }
                 }
             )
+        }
+    }
+
+    // 安全弹出对话框
+    private fun showEditDialog(tv: TextView) {
+        runCatching {
+            TextEditingDialog.show(tv.context, tv) { newText ->
+                runCatching {
+                    tv.text = newText
+                }
+            }
         }
     }
 }
