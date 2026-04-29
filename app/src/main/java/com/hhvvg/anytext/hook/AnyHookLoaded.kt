@@ -2,10 +2,10 @@ package com.hhvvg.anytext.hook
 
 import android.app.Activity
 import android.app.Application
+import android.content.Context
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
-import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
@@ -20,8 +20,8 @@ import android.util.Log
 class AnyHookLoaded : IXposedHookLoadPackage {
     private val TAG = "AnyTextHook"
     private val mainHandler = Handler(Looper.getMainLooper())
-    // 用唯一的Key存储Hook状态，避免和应用自身Tag冲突
-    private val HOOKED_KEY = "com.hhvvg.anytext.HOOKED"
+    // ✅ 修复：用唯一的Int值作为Tag Key，不能用字符串
+    private val HOOKED_KEY = 0x7f0a0001
 
     override fun handleLoadPackage(lpparam: XC_LoadPackage.LoadPackageParam) {
         if (lpparam.packageName == "com.hhvvg.anytext") return
@@ -48,7 +48,7 @@ class AnyHookLoaded : IXposedHookLoadPackage {
             scheduleTraverse(activity, 200)
         }
 
-        // ✅ 修复：每次页面恢复都重新Hook，防止被应用覆盖
+        // 每次页面恢复都重新Hook，防止被应用覆盖
         override fun onActivityResumed(activity: Activity) {
             scheduleTraverse(activity, 100)
         }
@@ -99,11 +99,11 @@ class AnyHookLoaded : IXposedHookLoadPackage {
         }
     }
 
-    // ✅ 修复：同时设置点击+长按触发，解决点击事件被覆盖问题
+    // 同时设置点击+长按触发，解决点击事件被覆盖问题
     private fun hookTextView(textView: TextView) {
         // 先获取原始监听器
         val originalClickListener = getOnClickListener(textView)
-        val originalLongClickListener = textView.onLongClickListener
+        val originalLongClickListener = getOnLongClickListener(textView)
 
         // 点击触发
         textView.setOnClickListener { v ->
@@ -123,12 +123,25 @@ class AnyHookLoaded : IXposedHookLoadPackage {
         Log.d(TAG, "成功Hook TextView: ${textView.text}")
     }
 
-    // ✅ 修复：多版本兼容获取点击监听器
+    // 多版本兼容获取点击监听器
     private fun getOnClickListener(textView: TextView): View.OnClickListener? {
         val fieldNames = arrayOf("mOnClickListener", "mOnClickLister", "onClickListener")
         for (fieldName in fieldNames) {
             try {
                 return XposedHelpers.getObjectField(textView, fieldName) as View.OnClickListener?
+            } catch (e: Exception) {
+                continue
+            }
+        }
+        return null
+    }
+
+    // ✅ 修复：用反射获取长按监听器
+    private fun getOnLongClickListener(textView: TextView): View.OnLongClickListener? {
+        val fieldNames = arrayOf("mOnLongClickListener", "mOnLongClickLister", "onLongClickListener")
+        for (fieldName in fieldNames) {
+            try {
+                return XposedHelpers.getObjectField(textView, fieldName) as View.OnLongClickListener?
             } catch (e: Exception) {
                 continue
             }
