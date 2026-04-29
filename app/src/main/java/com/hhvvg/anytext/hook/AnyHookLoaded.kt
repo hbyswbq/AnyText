@@ -16,24 +16,29 @@ import com.hhvvg.anytext.ui.TextEditingDialog
 class AnyHookLoaded : IXposedHookLoadPackage {
 
     override fun handleLoadPackage(lpparam: XC_LoadPackage.LoadPackageParam) {
+        // 跳过自身应用，避免无限循环
         if (lpparam.packageName == "com.hhvvg.anytext") return
 
+        // Hook Application.onCreate，全局注册生命周期回调
         XposedHelpers.findAndHookMethod(
             Application::class.java,
             "onCreate",
             object : XC_MethodHook() {
                 override fun afterHookedMethod(param: MethodHookParam) {
                     val application = param.thisObject as Application
-                    application.registerActivityLifecycleCallbacks(ActivityLifecycleListener())
+                    application.registerActivityLifecycleCallbacks(GlobalActivityLifecycleListener())
                 }
             }
         )
     }
 
-    private inner class ActivityLifecycleListener : Application.ActivityLifecycleCallbacks {
+    // 全局Activity生命周期监听器
+    private inner class GlobalActivityLifecycleListener : Application.ActivityLifecycleCallbacks {
         override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) {
+            // 延迟执行，确保布局加载完成
             activity.window.decorView.post {
-                traverseViewTree(activity.window.decorView.findViewById(android.R.id.content))
+                val rootView = activity.window.decorView.findViewById<ViewGroup>(android.R.id.content)
+                traverseViewTree(rootView)
             }
         }
 
@@ -45,50 +50,69 @@ class AnyHookLoaded : IXposedHookLoadPackage {
         override fun onActivityDestroyed(activity: Activity) {}
     }
 
+    // 递归遍历View树，Hook所有TextView
     private fun traverseViewTree(view: View) {
         when (view) {
             is ViewGroup -> {
+                // 遍历所有子View
                 for (i in 0 until view.childCount) {
                     traverseViewTree(view.getChildAt(i))
                 }
-                // 修复RecyclerView刷新后监听器丢失问题
+
+                // 特殊处理RecyclerView：修复刷新后监听器丢失问题
                 if (view is RecyclerView) {
-                    XposedHelpers.findAndHookMethod(
-                        RecyclerView::class.java,
-                        "setAdapter",
-                        RecyclerView.Adapter::class.java,
-                        object : XC_MethodHook() {
-                            override fun afterHookedMethod(param: MethodHookParam) {
-                                view.post { traverseViewTree(view) }
-                            }
-                        }
-                    )
+                    hookRecyclerViewAdapter(view)
                 }
             }
+
             is TextView -> {
-                // 避免重复设置监听器
-                if (view.tag !is TextViewOnClickWrapper) {
-                    val originalListener = view.setOnClickListener(null)
-                    val wrapper = TextViewOnClickWrapper(originalListener, view)
-                    view.setOnClickListener(wrapper)
-                    view.tag = wrapper
+                // 用Tag标记避免重复设置监听器
+                if (view.tag !is TextViewClickWrapper) {
+                    hookSingleTextView(view)
                 }
             }
         }
     }
 
-    // 正确实现View.OnClickListener接口
-    private inner class TextViewOnClickWrapper(
+    // Hook单个TextView
+    private fun hookSingleTextView(textView: TextView) {
+        // 先获取并移除原始监听器（Xposed标准写法，避免类型错误）
+        val originalListener = textView.setOnClickListener(null)
+        // 创建包装类，同时保留原始点击事件
+        val wrapper = TextViewClickWrapper(originalListener, textView)
+        textView.setOnClickListener(wrapper)
+        textView.tag = wrapper
+    }
+
+    // Hook RecyclerView的setAdapter方法
+    private fun hookRecyclerViewAdapter(recyclerView: RecyclerView) {
+        XposedHelpers.findAndHookMethod(
+            RecyclerView::class.java,
+            "setAdapter",
+            RecyclerView.Adapter::class.java,
+            object : XC_MethodHook() {
+                override fun afterHookedMethod(param: MethodHookParam) {
+                    // 适配器更新后，重新遍历所有子View
+                    recyclerView.post { traverseViewTree(recyclerView) }
+                }
+            }
+        )
+    }
+
+    // ✅ 核心修复：正确实现View.OnClickListener接口
+    private inner class TextViewClickWrapper(
         private val originalListener: View.OnClickListener?,
-        private val textView: TextView
+        private val targetTextView: TextView
     ) : View.OnClickListener {
 
         override fun onClick(v: View?) {
-            // 先执行原始点击事件
+            // 先执行原始点击事件，不影响应用原有功能
             originalListener?.onClick(v)
-            // 弹出编辑对话框
-            TextEditingDialog.show(v?.context ?: return, textView) { newText ->
-                textView.text = newText
+
+            // 弹出文本编辑对话框
+            val context = v?.context ?: return
+            TextEditingDialog.show(context, targetTextView) { newText ->
+                targetTextView.text = newText
             }
         }
     }
