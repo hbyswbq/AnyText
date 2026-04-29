@@ -14,7 +14,6 @@ class AnyHookLoaded : IXposedHookLoadPackage {
         val pkg = lpparam.packageName
         if (pkg == "com.hhvvg.anytext") return
 
-        // 兼容聊天列表：延迟设置长按，更稳定
         runCatching {
             XposedHelpers.findAndHookMethod(
                 TextView::class.java,
@@ -23,25 +22,24 @@ class AnyHookLoaded : IXposedHookLoadPackage {
                     override fun afterHookedMethod(param: MethodHookParam) {
                         val tv = param.thisObject as TextView
                         tv.post {
+                            val oldListener = tv.onLongClickListener
                             tv.setOnLongClickListener {
-                                showEditDialog(tv)
-                                true
+                                var handled = false
+                                runCatching {
+                                    TextEditingDialog.show(it.context, tv) { newText ->
+                                        runCatching {
+                                            tv.text = newText
+                                        }
+                                    }
+                                    handled = true
+                                }
+                                oldListener?.onLongClick(it)
+                                handled
                             }
                         }
                     }
                 }
             )
-        }
-    }
-
-    // 安全弹出对话框
-    private fun showEditDialog(tv: TextView) {
-        runCatching {
-            TextEditingDialog.show(tv.context, tv) { newText ->
-                runCatching {
-                    tv.text = newText
-                }
-            }
         }
     }
 }
