@@ -16,7 +16,6 @@ class AnyHookLoaded : IXposedHookLoadPackage {
     override fun handleLoadPackage(lpparam: XC_LoadPackage.LoadPackageParam) {
         if (lpparam.packageName == "com.hhvvg.anytext") return
 
-        // 全局 Hook 所有触摸 → 不管什么控件，长按都能取文字
         XposedHelpers.findAndHookMethod(
             View::class.java,
             "dispatchTouchEvent",
@@ -34,7 +33,6 @@ class AnyHookLoaded : IXposedHookLoadPackage {
         )
     }
 
-    // 按坐标找最上层的文字（通杀所有界面）
     private fun findTextViewAndShowDialog(view: View, x: Float, y: Float) {
         if (view is ViewGroup) {
             for (i in 0 until view.childCount) {
@@ -50,14 +48,13 @@ class AnyHookLoaded : IXposedHookLoadPackage {
         }
     }
 
-    // 判断坐标是否在控件上
     private fun isTouchInView(view: View, x: Float, y: Float): Boolean {
         val loc = IntArray(2)
         view.getLocationOnScreen(loc)
-        val left = loc[0]
-        val top = loc[1]
-        val right = left + view.width
-        val bottom = top + view.height
-        return x in left..right && y in top..bottom
+        val left = loc[0].toFloat()
+        val top = loc[1].toFloat()
+        val right = left + view.width.toFloat()
+        val bottom = top + view.height.toFloat()
+        return x >= left && x <= right && y >= top && y <= bottom
     }
 }
