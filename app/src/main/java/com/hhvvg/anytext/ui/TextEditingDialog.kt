@@ -7,13 +7,18 @@ import android.app.AlertDialog
 
 object TextEditingDialog {
 
-    fun show(context: Context, textView: TextView, onEdit: (String) -> Unit, onReset: () -> Unit) {
+    fun show(
+        context: Context,
+        textView: TextView,
+        onEdit: (String) -> Unit,
+        onReset: () -> Unit
+    ) {
         val editText = EditText(context)
         editText.setText(textView.text.toString())
 
         runCatching {
-            AlertDialog.Builder(context, android.R.style.Theme_DeviceDefault_Dialog)
-                .setTitle("修改聊天文本")
+            AlertDialog.Builder(context, android.R.style.Theme_DeviceDefault_Light_Dialog)
+                .setTitle("修改微信文本")
                 .setView(editText)
                 .setPositiveButton("确定修改") { _, _ ->
                     onEdit(editText.text.toString())
