@@ -1,6 +1,7 @@
 package com.hhvvg.anytext.hook
 
 import android.widget.Toast
+import android.view.View
 import de.robv.android.xposed.IXposedHookLoadPackage
 import de.robv.android.xposed.XC_MethodHook
 import de.robv.android.xposed.XposedHelpers
@@ -19,8 +20,10 @@ class AnyHookLoaded : IXposedHookLoadPackage {
             android.view.MotionEvent::class.java,
             object : XC_MethodHook() {
                 override fun beforeHookedMethod(param: MethodHookParam) {
+                    // ✅ 修复：先转换成View再访问context
+                    val view = param.thisObject as View
                     Toast.makeText(
-                        param.thisObject.context,
+                        view.context,
                         "✅ AnyText模块已生效",
                         Toast.LENGTH_SHORT
                     ).show()
