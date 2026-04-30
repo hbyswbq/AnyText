@@ -5,7 +5,6 @@ import android.os.Handler
 import android.os.Looper
 import android.view.MotionEvent
 import android.view.View
-import android.view.ViewGroup
 import android.widget.TextView
 import android.app.AlertDialog
 import android.widget.EditText
@@ -33,13 +32,11 @@ class AnyHookLoaded : IXposedHookLoadPackage {
 
                     when (event.action) {
                         MotionEvent.ACTION_DOWN -> {
-                            val tv = findTextViewAtPoint(view.rootView, event.rawX, event.rawY)
-                            if (tv != null) {
-                                longPressRunnable = Runnable {
-                                    showEditDialog(tv.context, tv)
-                                }
-                                mainHandler.postDelayed(longPressRunnable!!, 600)
+                            // ✅ 先不管找TextView，长按任何地方都弹框
+                            longPressRunnable = Runnable {
+                                showTestDialog(view.context)
                             }
+                            mainHandler.postDelayed(longPressRunnable!!, 600)
                         }
                         MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                             longPressRunnable?.let { mainHandler.removeCallbacks(it) }
@@ -51,35 +48,14 @@ class AnyHookLoaded : IXposedHookLoadPackage {
         )
     }
 
-    private fun findTextViewAtPoint(root: View, x: Float, y: Float): TextView? {
-        if (!isPointInView(root, x, y)) return null
-        if (root is TextView && root.isShown && root.text.isNotEmpty()) return root
-
-        if (root is ViewGroup) {
-            for (i in root.childCount - 1 downTo 0) {
-                val res = findTextViewAtPoint(root.getChildAt(i), x, y)
-                if (res != null) return res
-            }
-        }
-        return null
-    }
-
-    private fun isPointInView(view: View, x: Float, y: Float): Boolean {
-        val loc = IntArray(2)
-        view.getLocationOnScreen(loc)
-        return x >= loc[0] && x <= loc[0]+view.width && y >= loc[1] && y <= loc[1]+view.height
-    }
-
-    private fun showEditDialog(context: Context, tv: TextView) {
+    private fun showTestDialog(context: Context) {
         val edit = EditText(context)
-        edit.setText(tv.text)
+        edit.setText("测试文字")
 
         AlertDialog.Builder(context)
-            .setTitle("修改微信文字")
+            .setTitle("测试对话框")
             .setView(edit)
-            .setPositiveButton("确定") { _, _ ->
-                tv.text = edit.text.toString()
-            }
+            .setPositiveButton("确定") { _, _ -> }
             .setNegativeButton("取消", null)
             .show()
     }
