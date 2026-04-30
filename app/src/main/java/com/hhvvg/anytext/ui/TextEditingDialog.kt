@@ -18,7 +18,7 @@ object TextEditingDialog {
 
         runCatching {
             AlertDialog.Builder(context, android.R.style.Theme_DeviceDefault_Light_Dialog)
-                .setTitle("修改微信文本")
+                .setTitle("修改文本")
                 .setView(editText)
                 .setPositiveButton("确定修改") { _, _ ->
                     onEdit(editText.text.toString())
