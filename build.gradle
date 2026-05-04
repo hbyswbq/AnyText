@@ -1,5 +1,6 @@
 buildscript {
-    ext.kotlin_version = "1.9.20"
+    // 核心修复：降级 Kotlin 版本
+    ext.kotlin_version = "1.7.20"
     repositories {
         google()
         mavenCentral()
