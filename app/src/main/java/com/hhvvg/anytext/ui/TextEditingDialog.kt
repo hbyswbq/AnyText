@@ -1,33 +1,33 @@
-package com.hhvvg.anytext.ui
+package com.hbyswbq.anytext.ui;
 
-import android.content.Context
-import android.widget.EditText
-import android.widget.TextView
-import android.app.AlertDialog
+import android.app.AlertDialog;
+import android.content.Context;
+import android.view.LayoutInflater;
+import android.view.View;
+import android.widget.EditText;
 
-object TextEditingDialog {
+import com.hbyswbq.anytext.R;
 
-    fun show(
-        context: Context,
-        textView: TextView,
-        onEdit: (String) -> Unit,
-        onReset: () -> Unit
-    ) {
-        val editText = EditText(context)
-        editText.setText(textView.text.toString())
+public class TextEditingDialog {
 
-        runCatching {
-            AlertDialog.Builder(context, android.R.style.Theme_DeviceDefault_Light_Dialog)
-                .setTitle("修改文本")
-                .setView(editText)
-                .setPositiveButton("确定修改") { _, _ ->
-                    onEdit(editText.text.toString())
-                }
-                .setNeutralButton("全部重置") { _, _ ->
-                    onReset()
-                }
+    public interface OnTextEditedListener {
+        void onTextEdited(String newText);
+    }
+
+    public static void show(Context context, String originalText, final OnTextEditedListener listener) {
+        View view = LayoutInflater.from(context).inflate(R.layout.dialog_text_edit, null);
+        final EditText editText = view.findViewById(R.id.edit_text);
+        editText.setText(originalText);
+        editText.setSelection(originalText.length());
+
+        new AlertDialog.Builder(context)
+                .setTitle("编辑文本")
+                .setView(view)
+                .setPositiveButton("确定", (dialog, which) -> {
+                    String newText = editText.getText().toString();
+                    listener.onTextEdited(newText);
+                })
                 .setNegativeButton("取消", null)
-                .show()
-        }
+                .show();
     }
 }
