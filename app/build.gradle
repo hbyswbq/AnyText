@@ -36,6 +36,5 @@ dependencies {
     implementation 'com.google.android.material:material:1.11.0'
     compileOnly 'de.robv.android.xposed:api:82'
     compileOnly 'de.robv.android.xposed:api:82:sources'
-    // KavaRef反射库（简化微信反射操作）
-    implementation 'com.github.Ujhhgtg:KavaRef:1.2.0'
+    // 已删除：com.github.Ujhhgtg:KavaRef:1.2.0
 }
