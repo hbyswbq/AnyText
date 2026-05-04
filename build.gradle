@@ -1,13 +1,10 @@
 buildscript {
-    // 核心修复：降级 Kotlin 版本
-    ext.kotlin_version = "1.7.20"
     repositories {
         google()
         mavenCentral()
     }
     dependencies {
         classpath "com.android.tools.build:gradle:7.4.2"
-        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
     }
 }
 
