@@ -1,12 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
-    xmlns:tools="http://schemas.android.com/tools"
+<LinearLayout 
+    xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:padding="16dp"
-    tools:context=".MainActivity">
+    android:padding="16dp">
 
     <TextView
         android:layout_width="match_parent"
@@ -14,19 +12,12 @@
         android:text="AnyText v1.1.0"
         android:textSize="24sp"
         android:textStyle="bold"
-        android:marginBottom="16dp"/>
+        android:layout_marginBottom="16dp"/>
 
     <TextView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="点击任意应用中的文本即可修改\n长按微信消息可深度修改（滚动不恢复）"
-        android:marginBottom="24dp"/>
-
-    <com.google.android.material.switchmaterial.SwitchMaterial
-        android:id="@+id/switch_wechat"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="启用微信消息深度修改"
-        android:checked="true"/>
+        android:text="点击任意应用文本即可修改\n长按微信消息可深度修改"
+        android:layout_marginBottom="24dp"/>
 
 </LinearLayout>
