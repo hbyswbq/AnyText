@@ -29,8 +29,8 @@ android {
 }
 
 dependencies {
+    // 只保留最基础的AppCompat，无任何其他依赖
     implementation 'androidx.appcompat:appcompat:1.6.1'
-    implementation 'com.google.android.material:material:1.11.0'
     compileOnly 'de.robv.android.xposed:api:82'
     compileOnly 'de.robv.android.xposed:api:82:sources'
 }
