@@ -1,10 +1,10 @@
 name: Android CI
 
-on:
+于:
   push:
-    branches: [ main ]
+    分支: [ main ]
   pull_request:
-    branches: [ main ]
+    分支: [ main ]
 
 jobs:
   build:
